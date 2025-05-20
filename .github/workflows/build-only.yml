@@ -22,20 +22,94 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Corretto 8 (JDK 8)
+      - name: Set up Temurin 11 (JDK 11)
         uses: actions/setup-java@v4
         with:
-          java-version: 8
-          distribution: 'corretto'
+          java-version: 11
+          distribution: 'temurin'
           cache: 'maven'
+
       - name: Clear any possible SNAPSHOT dependencies in the local maven repository
         run: |
           LOCAL_REPO="$HOME/.m2/repository"
           echo "Cleaning SNAPSHOTS from $LOCAL_REPO"
           if [ -d "$LOCAL_REPO" ]; then find "$LOCAL_REPO" -name "*SNAPSHOT*" | xargs -I {} rm -rfv "{}"; fi
         shell: bash
-      - name: Build with Maven Java 8 -Dquickly -DskipTests=true
-        run: mvn -U -B -Dquickly install -DskipTests=true
+
+      - name: Build with Maven Java 11 -DskipTests=true
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/martinhickson/undertow</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/martinhickson/undertow</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -U -B -ntp -Dquickly install -DskipTests=true 
+
+      - name: Deploy artifacts to GitHub Maven Packages (Optional)
+        if: ${{ github.event.inputs.deploy_artifacts == 'true' }}
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/martinhickson/undertow</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/martinhickson/undertow</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -B -ntp deploy -DskipTests=true -DdeployAtEnd=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate SHA-512 checksums for JARs
         run: |

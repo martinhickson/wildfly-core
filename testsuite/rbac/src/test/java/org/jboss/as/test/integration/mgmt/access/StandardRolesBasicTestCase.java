@@ -35,14 +35,16 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.REA
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.READ_CHILDREN_NAMES_OPERATION;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.READ_CONFIG_AS_XML_OPERATION;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.READ_RESOURCE_OPERATION;
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RELOAD;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.REMOVE;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RESULT;
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RESUME;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SHUTDOWN;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUBSYSTEM;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUCCESS;
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUSPEND;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.TYPE;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.UNDEFINE_ATTRIBUTE_OPERATION;
-import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.UPLOAD_DEPLOYMENT_BYTES;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.USER;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.USERNAME;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.VALUE;
@@ -59,8 +61,10 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.List;
 
 import org.jboss.as.controller.PathAddress;
+import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.operations.common.Util;
 import org.jboss.as.test.integration.management.interfaces.ManagementInterface;
 import org.jboss.as.test.integration.management.rbac.Outcome;
@@ -89,12 +93,12 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
     protected static final String EXAMPLE_DS = "subsystem=rbac/rbac-constrained=default";
     private static final String TEST_PATH = "path=rbac.test";
 
-    private static final ModelNode WFLY_1916_OP;
+    private static final ModelNode UPLOAD_DEPLOYMENT_BYTES;
 
     static {
-        WFLY_1916_OP = Util.createEmptyOperation(UPLOAD_DEPLOYMENT_BYTES, PathAddress.EMPTY_ADDRESS);
-        WFLY_1916_OP.get(BYTES).set(new byte[64]);
-        WFLY_1916_OP.protect();
+        UPLOAD_DEPLOYMENT_BYTES = Util.createEmptyOperation(ModelDescriptionConstants.UPLOAD_DEPLOYMENT_BYTES, PathAddress.EMPTY_ADDRESS);
+        UPLOAD_DEPLOYMENT_BYTES.get(BYTES).set(new byte[64]);
+        UPLOAD_DEPLOYMENT_BYTES.protect();
     }
 
     protected static void deployDeployment1(ManagementClient client) throws IOException {
@@ -156,10 +160,14 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.UNAUTHORIZED);
         addPath(client, Outcome.UNAUTHORIZED);
 
-        testWFLY1916(client, Outcome.UNAUTHORIZED);
+        uploadDeploymentBytes(client, Outcome.UNAUTHORIZED);
 
-        // Monitor can't shutdown
-        testWCORE1067(client);
+        suspend(client, Outcome.UNAUTHORIZED);
+        resume(client, Outcome.UNAUTHORIZED);
+
+        // Monitor can't shut down or reload
+        shutdownUnauthorized(client);
+        reloadUnauthorized(client);
     }
 
     @Test
@@ -178,7 +186,10 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.UNAUTHORIZED);
         addPath(client, Outcome.UNAUTHORIZED);
 
-        testWFLY1916(client, Outcome.SUCCESS);
+        uploadDeploymentBytes(client, Outcome.SUCCESS);
+
+        suspend(client, Outcome.SUCCESS);
+        resume(client, Outcome.SUCCESS);
     }
 
     @Test
@@ -197,7 +208,10 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.SUCCESS);
         addPath(client, Outcome.SUCCESS);
 
-        testWFLY1916(client, Outcome.SUCCESS);
+        uploadDeploymentBytes(client, Outcome.SUCCESS);
+
+        suspend(client, Outcome.SUCCESS);
+        resume(client, Outcome.SUCCESS);
     }
 
     @Test
@@ -216,10 +230,14 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.SUCCESS);
         addPath(client, Outcome.UNAUTHORIZED);
 
-        testWFLY1916(client, Outcome.SUCCESS);
+        uploadDeploymentBytes(client, Outcome.SUCCESS);
 
-        // Deployer can't shutdown
-        testWCORE1067(client);
+        suspend(client, Outcome.UNAUTHORIZED);
+        resume(client, Outcome.UNAUTHORIZED);
+
+        // Deployer can't shut down or reload
+        shutdownUnauthorized(client);
+        reloadUnauthorized(client);
     }
 
     @Test
@@ -240,7 +258,10 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.SUCCESS);
         addPath(client, Outcome.SUCCESS);
 
-        testWFLY1916(client, Outcome.SUCCESS);
+        uploadDeploymentBytes(client, Outcome.SUCCESS);
+
+        suspend(client, Outcome.SUCCESS);
+        resume(client, Outcome.SUCCESS);
     }
 
     @Test
@@ -260,10 +281,14 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.UNAUTHORIZED);
         addPath(client, Outcome.UNAUTHORIZED);
 
-        testWFLY1916(client, Outcome.UNAUTHORIZED);
+        uploadDeploymentBytes(client, Outcome.UNAUTHORIZED);
 
-        // Auditor can't shutdown
-        testWCORE1067(client);
+        suspend(client, Outcome.UNAUTHORIZED);
+        resume(client, Outcome.UNAUTHORIZED);
+
+        // Auditor can't shut down or reload
+        shutdownUnauthorized(client);
+        reloadUnauthorized(client);
     }
 
     @Test
@@ -283,7 +308,7 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         addDeployment2(client, Outcome.SUCCESS);
         addPath(client, Outcome.SUCCESS);
 
-        testWFLY1916(client, Outcome.SUCCESS);
+        uploadDeploymentBytes(client, Outcome.SUCCESS);
     }
 
     private static void whoami(ManagementInterface client, String expectedUsername) throws IOException {
@@ -325,7 +350,7 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
     }
 
     private static ModelNode readAttribute(ManagementInterface client, String address, String attributeName,
-            Outcome expectedOutcome) throws IOException {
+                                           Outcome expectedOutcome) throws IOException {
         ModelNode op = createOpNode(address, READ_ATTRIBUTE_OPERATION);
         op.get(NAME).set(attributeName);
 
@@ -428,14 +453,28 @@ public abstract class StandardRolesBasicTestCase extends AbstractManagementInter
         }
     }
 
-    private void testWFLY1916(ManagementInterface client, Outcome expected) throws IOException {
-        ModelNode op = WFLY_1916_OP.clone();
+    private static void uploadDeploymentBytes(ManagementInterface client, Outcome expected) throws IOException {
+        ModelNode op = UPLOAD_DEPLOYMENT_BYTES.clone();
         RbacUtil.executeOperation(client, op, expected);
     }
 
-    private void testWCORE1067(ManagementInterface client) throws IOException {
+    private static void suspend(ManagementInterface client, Outcome expected) throws IOException {
+        ModelNode op = Util.createEmptyOperation(SUSPEND, PathAddress.EMPTY_ADDRESS);
+        RbacUtil.executeOperation(client, op, expected);
+    }
+
+    private static void resume(ManagementInterface client, Outcome expected) throws IOException {
+        ModelNode op = Util.createEmptyOperation(RESUME, PathAddress.EMPTY_ADDRESS);
+        RbacUtil.executeOperation(client, op, expected);
+    }
+
+    private static void shutdownUnauthorized(ManagementInterface client) throws IOException {
         ModelNode op = Util.createEmptyOperation(SHUTDOWN, PathAddress.EMPTY_ADDRESS);
         RbacUtil.executeOperation(client, op, Outcome.UNAUTHORIZED);
     }
 
+    private static void reloadUnauthorized(ManagementInterface client) throws IOException {
+        ModelNode op = Util.createEmptyOperation(RELOAD, PathAddress.EMPTY_ADDRESS);
+        RbacUtil.executeOperation(client, op, Outcome.UNAUTHORIZED);
+    }
 }

@@ -23,15 +23,21 @@
 package org.jboss.as.server.operations;
 
 
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RESUME;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.RUNNING_SERVER;
 import static org.jboss.as.server.Services.JBOSS_SUSPEND_CONTROLLER;
+
+import java.util.EnumSet;
 
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.OperationStepHandler;
 import org.jboss.as.controller.SimpleOperationDefinition;
 import org.jboss.as.controller.SimpleOperationDefinitionBuilder;
+import org.jboss.as.controller.access.Action;
+import org.jboss.as.controller.access.AuthorizationResult;
+import org.jboss.as.controller.logging.ControllerLogger;
 import org.jboss.as.server.controller.descriptions.ServerDescriptions;
 import org.jboss.as.server.suspend.SuspendController;
 import org.jboss.dmr.ModelNode;
@@ -63,6 +69,11 @@ public class ServerResumeHandler implements OperationStepHandler {
             public void execute(OperationContext context, ModelNode operation) throws OperationFailedException {
                 // Even though we don't read from the service registry, we have a reference to a
                 // service-fronted 'processState' so tell the controller we are modifying a service
+                AuthorizationResult authorizationResult = context.authorize(operation, EnumSet.of(Action.ActionEffect.WRITE_RUNTIME));
+                if (authorizationResult.getDecision() == AuthorizationResult.Decision.DENY) {
+                    throw ControllerLogger.ACCESS_LOGGER.unauthorized(operation.get(OP).asString(),
+                            context.getCurrentAddress(), authorizationResult.getExplanation());
+                }
                 final ServiceRegistry registry = context.getServiceRegistry(true);
                 context.completeStep(new OperationContext.ResultHandler() {
                     @Override

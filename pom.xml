@@ -33,7 +33,7 @@
 
     <groupId>org.wildfly.core</groupId>
     <artifactId>wildfly-core-parent</artifactId>
-    <version>18.1.2.Final</version>
+    <version>18.1.2.Final.bravura-2</version>
 
     <packaging>pom</packaging>
 
@@ -52,6 +52,13 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/martinhickson/wildfly-core</url>
+        </repository>
+    </distributionManagement>
 
     <scm>
         <connection>scm:git:${wildfly.core.scm.connection}</connection>
@@ -101,7 +108,7 @@
              to non-snapshot public maven repos -->
         <maven.repository.protocol>https</maven.repository.protocol>
         <!-- The full remote maven repo URL; can be overridden via -D for special use cases -->
-        <maven.repository.url>${maven.repository.protocol}://repository.jboss.org/nexus/content/groups/public/</maven.repository.url>
+        <maven.repository.url>${maven.repository.protocol}://maven.pkg.github.com/martinhickson/wildfly-core</maven.repository.url>
         <!-- https://access.redhat.com/maven-repository -->
         <maven.redhat.repository.url>${maven.repository.protocol}://maven.repository.redhat.com/ga/</maven.redhat.repository.url>
 
@@ -2402,9 +2409,9 @@
             </properties>
             <repositories>
                 <repository>
-                    <id>jboss-staging-repository-group</id>
-                    <name>JBoss Staging Repository Group</name>
-                    <url>https://repository.jboss.org/nexus/content/groups/staging/</url>
+                    <id>github</id>
+                    <name>GitHub Staging Repository Group</name>
+                    <url>https://maven.pkg.github.com/martinhickson/wildfly-core/</url>
                     <layout>default</layout>
                 </repository>
             </repositories>

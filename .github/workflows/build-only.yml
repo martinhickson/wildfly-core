@@ -60,7 +60,7 @@ jobs:
             </servers>
           </settings>
           EOF
-          mvn deploy -DskipExistingArtifacts=true -DskipTests=true
+          mvn deploy -DskipTests=true -DdeployAtEnd=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

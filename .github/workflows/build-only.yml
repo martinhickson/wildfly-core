@@ -13,10 +13,15 @@ on:
         required: false
         default: false
         type: boolean
+      deploy_artifacts:
+        description: 'Deploy artifacts to GitHub Maven repository?'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-and-release:
-    name: WildFly Core Build and Optional Draft Release
+    name: WildFly Core Build and Optional Release/Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -70,7 +75,7 @@ jobs:
             </activeProfiles>
           </settings>
           EOF
-          mvn -U -B -ntp -Dquickly install -DskipTests=true 
+          mvn -U -B -ntp -Dquickly install -DskipTests=true
 
       - name: Deploy artifacts to GitHub Maven Packages (Optional)
         if: ${{ github.event.inputs.deploy_artifacts == 'true' }}
@@ -107,7 +112,8 @@ jobs:
             </activeProfiles>
           </settings>
           EOF
-          mvn -B -ntp deploy -DskipTests=true -DdeployAtEnd=true
+          mvn -B -ntp deploy -DskipTests=true -DdeployAtEnd=true \
+              -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/martinhickson/wildfly-core
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

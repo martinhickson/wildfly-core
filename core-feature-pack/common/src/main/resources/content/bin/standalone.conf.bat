@@ -60,6 +60,13 @@ set "JAVA_OPTS=%JAVA_OPTS% -Djboss.modules.system.pkgs=org.jboss.byteman"
 
 set "JAVA_OPTS=%JAVA_OPTS% -Djava.awt.headless=true"
 
+rem The following line resolves CVE-2023-50780:
+set "JAVA_OPTS=%JAVA_OPTS% -Dlog4j2.disableJmx=true"
+
+rem The following lines resolve CVE-2016-4978.  Add additional whitelist entries as required:
+set "JAVA_OPTS=%JAVA_OPTS% -Dorg.apache.activemq.artemis.jms.deserialization.whitelist=java.lang.String,java.lang.Integer"
+set "JAVA_OPTS=%JAVA_OPTS% -Dorg.apache.activemq.artemis.jms.deserialization.blacklist="
+
 rem # Sample JPDA settings for remote socket debugging
 rem set "JAVA_OPTS=%JAVA_OPTS% -agentlib:jdwp=transport=dt_socket,address=8787,server=y,suspend=n"
 

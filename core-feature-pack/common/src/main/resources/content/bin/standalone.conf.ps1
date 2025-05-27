@@ -58,6 +58,13 @@ if (-Not $JAVA_OPTS) {
 
     $JAVA_OPTS += '-Djava.awt.headless=true'
 
+    # The following line resolves CVE-2023-50780:
+    $JAVA_OPTS += '-Dlog4j2.disableJmx=true'
+
+    # The following lines resolve CVE-2016-4978.  Add additional whitelist entries as required:
+    $JAVA_OPTS += '-Dorg.apache.activemq.artemis.jms.deserialization.whitelist=java.lang.String,java.lang.Integer'
+    $JAVA_OPTS += '-Dorg.apache.activemq.artemis.jms.deserialization.blacklist='
+
     # Set the default configuration file to use if -c or --server-config are not used
     #$JAVA_OPTS += '-Djboss.server.default.config=standalone.xml'
 

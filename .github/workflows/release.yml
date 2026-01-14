@@ -13,6 +13,11 @@ on:
         required: true
         default: 'release/18.1.2.Final.bravura-7'
         type: string
+      source_branch:
+        description: 'Source branch to create release from'
+        required: true
+        default: '18.1.2.Final-security-enhanced'
+        type: string
       upload_to_github_packages:
         description: 'Upload Maven artifacts to GitHub Packages?'
         required: false
@@ -33,6 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Temurin 11 (JDK 11)
         uses: actions/setup-java@v4
@@ -46,15 +52,38 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Fetch all refs
+        run: |
+          git fetch --all --tags
+
       - name: Create or checkout release branch
         run: |
-          BRANCH="${{ github.event.inputs.release_branch }}"
-          if git show-ref --verify --quiet refs/heads/$BRANCH; then
-            echo "Branch $BRANCH already exists, checking out..."
-            git checkout $BRANCH
+          SOURCE_BRANCH="${{ github.event.inputs.source_branch }}"
+          RELEASE_BRANCH="${{ github.event.inputs.release_branch }}"
+          
+          # Verify source branch exists
+          if ! git show-ref --verify --quiet refs/remotes/origin/$SOURCE_BRANCH; then
+            echo "Error: Source branch '$SOURCE_BRANCH' does not exist remotely"
+            exit 1
+          fi
+          echo "Source branch is: $SOURCE_BRANCH"
+          
+          # Checkout source branch first
+          git checkout $SOURCE_BRANCH
+          git pull origin $SOURCE_BRANCH
+          
+          # Check if release branch exists locally
+          if git show-ref --verify --quiet refs/heads/$RELEASE_BRANCH; then
+            echo "Release branch $RELEASE_BRANCH already exists locally, checking out..."
+            git checkout $RELEASE_BRANCH
+            git pull origin $RELEASE_BRANCH || true
+          # Check if release branch exists remotely
+          elif git show-ref --verify --quiet refs/remotes/origin/$RELEASE_BRANCH; then
+            echo "Release branch $RELEASE_BRANCH exists remotely, checking out..."
+            git checkout -b $RELEASE_BRANCH origin/$RELEASE_BRANCH
           else
-            echo "Creating new branch $BRANCH..."
-            git checkout -b $BRANCH
+            echo "Creating new release branch $RELEASE_BRANCH from source branch $SOURCE_BRANCH..."
+            git checkout -b $RELEASE_BRANCH
           fi
 
       - name: Set Maven version
@@ -115,21 +144,42 @@ jobs:
             git commit -m "Set version to ${{ github.event.inputs.version }}"
           fi
 
+      - name: Push release branch
+        run: |
+          BRANCH="${{ github.event.inputs.release_branch }}"
+          # Try to push, use --set-upstream if branch doesn't exist remotely
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
+            echo "Pushing to existing remote branch $BRANCH..."
+            git push origin "$BRANCH" || {
+              echo "Push failed. Branch may have diverged. Exiting."
+              exit 1
+            }
+          else
+            echo "Pushing new branch $BRANCH..."
+            git push -u origin "$BRANCH"
+          fi
+
       - name: Create and push tag
         run: |
           TAG="${{ github.event.inputs.version }}"
+          # Check if tag exists locally
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping tag creation"
+            echo "Tag $TAG already exists locally"
+            # Check if it exists remotely
+            if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+              echo "Tag $TAG already exists remotely, skipping tag creation"
+            else
+              echo "Tag exists locally but not remotely, pushing..."
+              git push origin "$TAG"
+            fi
+          # Check if tag exists remotely
+          elif git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists remotely, skipping tag creation"
           else
             echo "Creating tag $TAG"
             git tag -a "$TAG" -m "Release $TAG"
             git push origin "$TAG"
           fi
-
-      - name: Push release branch
-        run: |
-          BRANCH="${{ github.event.inputs.release_branch }}"
-          git push origin "$BRANCH"
 
       - name: Deploy artifacts to GitHub Maven Packages (Optional)
         if: ${{ github.event.inputs.upload_to_github_packages == 'true' }}

@@ -1,0 +1,173 @@
+name: Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 18.1.2.Final.bravura-7)'
+        required: true
+        default: '18.1.2.Final.bravura-7'
+        type: string
+      release_branch:
+        description: 'Release branch name'
+        required: true
+        default: 'release/18.1.2.Final.bravura-7'
+        type: string
+      upload_to_github_packages:
+        description: 'Upload Maven artifacts to GitHub Packages?'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Temurin 11 (JDK 11)
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or checkout release branch
+        run: |
+          BRANCH="${{ github.event.inputs.release_branch }}"
+          if git show-ref --verify --quiet refs/heads/$BRANCH; then
+            echo "Branch $BRANCH already exists, checking out..."
+            git checkout $BRANCH
+          else
+            echo "Creating new branch $BRANCH..."
+            git checkout -b $BRANCH
+          fi
+
+      - name: Set Maven version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "Setting Maven version to $VERSION"
+          mvn -B -ntp versions:set -DnewVersion=$VERSION -DgenerateBackupPoms=false
+
+      - name: Clear any possible SNAPSHOT dependencies in the local maven repository
+        run: |
+          LOCAL_REPO="$HOME/.m2/repository"
+          echo "Cleaning SNAPSHOTS from $LOCAL_REPO"
+          if [ -d "$LOCAL_REPO" ]; then find "$LOCAL_REPO" -name "*SNAPSHOT*" | xargs -I {} rm -rfv "{}"; fi
+        shell: bash
+
+      - name: Build with Maven
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -U -B -ntp -Dquickly install -DskipTests=true
+
+      - name: Commit version changes
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Set version to ${{ github.event.inputs.version }}"
+          fi
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ github.event.inputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping tag creation"
+          else
+            echo "Creating tag $TAG"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Push release branch
+        run: |
+          BRANCH="${{ github.event.inputs.release_branch }}"
+          git push origin "$BRANCH"
+
+      - name: Deploy artifacts to GitHub Maven Packages (Optional)
+        if: ${{ github.event.inputs.upload_to_github_packages == 'true' }}
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -B -ntp deploy -DskipTests=true -DdeployAtEnd=true \
+              -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

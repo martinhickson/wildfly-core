@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 18.1.2.Final.bravura-7)'
+        description: 'Release version (e.g., 18.1.2.Final.bravura-8)'
         required: true
-        default: '18.1.2.Final.bravura-7'
+        default: '18.1.2.Final.bravura-8'
         type: string
       release_branch:
         description: 'Release branch name'
         required: true
-        default: 'release/18.1.2.Final.bravura-7'
+        default: 'release/18.1.2.Final.bravura-8'
         type: string
       source_branch:
         description: 'Source branch to create release from'

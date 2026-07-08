@@ -17,7 +17,7 @@ import org.jboss.as.protocol.StreamUtils;
 import org.jboss.as.protocol.mgmt.ManagementChannelHandler;
 import org.jboss.as.protocol.mgmt.ManagementPingRequest;
 import org.jboss.remoting3.Channel;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
 /**
@@ -96,7 +96,7 @@ public class SlaveHostPinger {
         public void run() {
             if (!cancelled) {
                 boolean fail = false;
-                AsyncFuture<Long> future = null;
+                CompletableFuture<Long> future = null;
                 try {
                     if (interval < 1 || System.currentTimeMillis() - channelHandler.getLastMessageReceivedTime() > interval) {
                         future = channelHandler.executeRequest(ManagementPingRequest.INSTANCE, null).getResult();

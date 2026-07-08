@@ -13,7 +13,7 @@ import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
-import org.jboss.threads.AsyncFutureTask;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.common.Assert;
 
 import java.util.concurrent.ExecutionException;
@@ -125,15 +125,11 @@ public class ServerBootOperationsService implements Service<Void> {
         return executorInjector;
     }
 
-    private static class FutureBootUpdates extends AsyncFutureTask<ModelNode> implements ActiveOperation.CompletedCallback<ModelNode> {
-
-        private FutureBootUpdates() {
-            super(null);
-        }
+    private static class FutureBootUpdates extends CompletableFuture<ModelNode> implements ActiveOperation.CompletedCallback<ModelNode> {
 
         @Override
         public void completed(final ModelNode result) {
-            setResult(result);
+            complete(result);
         }
 
         /**
@@ -142,12 +138,12 @@ public class ServerBootOperationsService implements Service<Void> {
         @Override
         public void failed(final Exception e) {
             Assert.checkNotNullParam("Exception", e);
-            super.setFailed(e);
+            completeExceptionally(e);
         }
 
         @Override
         public void cancelled() {
-            setCancelled();
+            cancel(false);
         }
     }
 

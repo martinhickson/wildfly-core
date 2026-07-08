@@ -174,7 +174,7 @@ import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
-import org.jboss.threads.AsyncFutureTask;
+import java.util.concurrent.CompletableFuture;
 import org.jboss.threads.JBossThreadFactory;
 import org.wildfly.common.Assert;
 import org.wildfly.security.manager.WildFlySecurityManager;
@@ -1551,14 +1551,10 @@ public class DomainModelControllerService extends AbstractControllerService impl
 
     }
 
-    private class FutureServerInventory extends AsyncFutureTask<ServerInventory>{
-
-        public FutureServerInventory() {
-            super(null);
-        }
+    private class FutureServerInventory extends CompletableFuture<ServerInventory> {
 
         private void setInventory(ServerInventory inventory) {
-            super.setResult(inventory);
+            complete(inventory);
         }
 
     }

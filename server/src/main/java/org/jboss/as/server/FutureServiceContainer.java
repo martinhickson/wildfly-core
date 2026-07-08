@@ -7,23 +7,20 @@ package org.jboss.as.server;
 
 import org.jboss.as.server.logging.ServerLogger;
 import org.jboss.msc.service.ServiceContainer;
-import org.jboss.threads.AsyncFutureTask;
-import org.jboss.threads.JBossExecutors;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author John Bailey
  */
-public class FutureServiceContainer extends AsyncFutureTask<ServiceContainer> {
-    public FutureServiceContainer() {
-        super(JBossExecutors.directExecutor());
-    }
+public class FutureServiceContainer extends CompletableFuture<ServiceContainer> {
 
     void done(final ServiceContainer container) {
-        setResult(container);
+        complete(container);
     }
 
     void failed(final Throwable t) {
         Throwable cause = t != null ? t : ServerLogger.ROOT_LOGGER.throwableIsNull();
-        setFailed(cause);
+        completeExceptionally(cause);
     }
 }

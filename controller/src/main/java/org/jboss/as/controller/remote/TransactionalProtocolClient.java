@@ -13,7 +13,8 @@ import org.jboss.as.controller.client.OperationMessageHandler;
 import org.jboss.as.controller.client.OperationResponse;
 import org.jboss.dmr.ModelNode;
 import org.jboss.remoting3.Attachments;
-import org.jboss.threads.AsyncFuture;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A transactional protocol client to execute management operations between {@link ModelController}s running on different
@@ -55,7 +56,7 @@ public interface TransactionalProtocolClient {
      * @return the future result
      * @throws IOException
      */
-    AsyncFuture<OperationResponse> execute(TransactionalOperationListener<Operation> listener, ModelNode operation, OperationMessageHandler messageHandler, OperationAttachments attachments) throws IOException;
+    CompletableFuture<OperationResponse> execute(TransactionalOperationListener<Operation> listener, ModelNode operation, OperationMessageHandler messageHandler, OperationAttachments attachments) throws IOException;
 
     /**
      * Execute an operation. This returns a future for the final result, which will only available after the prepared
@@ -67,7 +68,7 @@ public interface TransactionalProtocolClient {
      * @return the future result
      * @throws IOException
      */
-    <T extends Operation> AsyncFuture<OperationResponse> execute(TransactionalOperationListener<T> listener, T operation) throws IOException;
+    <T extends Operation> CompletableFuture<OperationResponse> execute(TransactionalOperationListener<T> listener, T operation) throws IOException;
 
     /**
      * The transactional operation listener.
@@ -176,7 +177,7 @@ public interface TransactionalProtocolClient {
          *
          * @return the final result
          */
-        AsyncFuture<OperationResponse> getFinalResult();
+        CompletableFuture<OperationResponse> getFinalResult();
 
     }
 

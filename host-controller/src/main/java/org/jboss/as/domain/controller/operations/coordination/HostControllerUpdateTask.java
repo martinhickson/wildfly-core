@@ -35,7 +35,6 @@ import org.jboss.as.controller.client.OperationAttachments;
 import org.jboss.as.controller.client.OperationMessageHandler;
 import org.jboss.as.controller.client.OperationResponse;
 import org.jboss.as.controller.remote.BlockingQueueOperationListener;
-import org.jboss.as.controller.remote.CompletedFuture;
 import org.jboss.as.controller.remote.TransactionalOperationImpl;
 import org.jboss.as.controller.remote.TransactionalProtocolClient;
 import org.jboss.as.controller.transform.OperationRejectionPolicy;
@@ -46,7 +45,7 @@ import org.jboss.as.controller.transform.Transformers;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
 import org.jboss.dmr.Property;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author Emanuel Muckenhuber
@@ -92,7 +91,7 @@ class HostControllerUpdateTask {
                     } else {
                         HOST_CONTROLLER_LOGGER.tracef("Sending %s (untransformed) to %s", transformedOperation, name);
                     }
-                    final AsyncFuture<OperationResponse> result = client.execute(subsystemListener, proxyOperation);
+                    final CompletableFuture<OperationResponse> result = client.execute(subsystemListener, proxyOperation);
                     return new ExecutedHostRequest(result, transformationResult);
                 } else {
                     // We assume here that if we have a null transformedOperation, it means the operation must be discarded and not be sent to the slave.
@@ -134,17 +133,17 @@ class HostControllerUpdateTask {
 
     static class ExecutedHostRequest implements OperationResultTransformer, OperationRejectionPolicy {
 
-        private final AsyncFuture<OperationResponse> futureResult;
+        private final CompletableFuture<OperationResponse> futureResult;
         private final OperationResultTransformer resultTransformer;
         private final OperationRejectionPolicy rejectPolicy;
 
-        ExecutedHostRequest(AsyncFuture<OperationResponse> futureResult, OperationResultTransformer resultTransformer, OperationRejectionPolicy rejectPolicy) {
+        ExecutedHostRequest(CompletableFuture<OperationResponse> futureResult, OperationResultTransformer resultTransformer, OperationRejectionPolicy rejectPolicy) {
             this.futureResult = futureResult;
             this.resultTransformer = resultTransformer;
             this.rejectPolicy = rejectPolicy;
         }
 
-        ExecutedHostRequest(AsyncFuture<OperationResponse> futureResult, OperationTransformer.TransformedOperation transformedOperation) {
+        ExecutedHostRequest(CompletableFuture<OperationResponse> futureResult, OperationTransformer.TransformedOperation transformedOperation) {
             this(futureResult, transformedOperation, transformedOperation);
         }
 
@@ -202,12 +201,12 @@ class HostControllerUpdateTask {
         }
 
         public void asyncCancel() {
-            futureResult.asyncCancel(true);
+            futureResult.cancel(true);
         }
 
         ExecutedHostRequest toFailedRequest(ModelNode finalResponse) {
             OperationResponse simpleResponse = OperationResponse.Factory.createSimple(finalResponse);
-            return new ExecutedHostRequest(new CompletedFuture<>(simpleResponse), resultTransformer, rejectPolicy);
+            return new ExecutedHostRequest(CompletableFuture.completedFuture(simpleResponse), resultTransformer, rejectPolicy);
         }
     }
 

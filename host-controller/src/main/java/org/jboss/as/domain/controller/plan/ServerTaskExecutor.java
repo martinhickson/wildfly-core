@@ -26,7 +26,7 @@ import org.jboss.as.controller.transform.OperationResultTransformer;
 import org.jboss.as.domain.controller.ServerIdentity;
 import org.jboss.as.domain.controller.logging.DomainControllerLogger;
 import org.jboss.dmr.ModelNode;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author Emanuel Muckenhuber
@@ -142,7 +142,7 @@ public abstract class ServerTaskExecutor {
         // Swap out the submitted task so we don't wait for the final result. Use a future the returns
         // prepared response
         ServerIdentity identity = failedOperation.getOperation().getIdentity();
-        AsyncFuture<OperationResponse> finalResult = failedOperation.getFinalResult();
+        CompletableFuture<OperationResponse> finalResult = failedOperation.getFinalResult();
         synchronized (submittedTasks) {
             submittedTasks.put(identity, new ServerTaskExecutor.ExecutedServerRequest(identity, finalResult));
         }
@@ -282,8 +282,8 @@ public abstract class ServerTaskExecutor {
         }
 
         private void asyncCancel() {
-            if (finalResult instanceof AsyncFuture) {
-                ((AsyncFuture) finalResult).asyncCancel(true);
+            if (finalResult instanceof CompletableFuture) {
+                ((CompletableFuture) finalResult).cancel(true);
             }
         }
 

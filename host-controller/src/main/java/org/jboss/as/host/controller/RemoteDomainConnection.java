@@ -48,7 +48,7 @@ import org.jboss.as.remoting.management.ManagementRemotingServices;
 import org.jboss.dmr.ModelNode;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.Connection;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
@@ -152,9 +152,11 @@ class RemoteDomainConnection extends FutureManagementChannel {
         try {
             if(prepareClose() && isConnected()) {
                 try {
-                    channelHandler.executeRequest(new UnregisterModelControllerRequest(), null).getResult().await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    channelHandler.executeRequest(new UnregisterModelControllerRequest(), null).getResult().get();
+                } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
         } finally {
@@ -512,7 +514,7 @@ class RemoteDomainConnection extends FutureManagementChannel {
         public void run() {
             if (isConnected()) {
                 boolean fail = false;
-                AsyncFuture<Long> future = null;
+                CompletableFuture<Long> future = null;
                 try {
                     if (System.currentTimeMillis() - channelHandler.getLastMessageReceivedTime() > INTERVAL) {
                         future = channelHandler.executeRequest(ManagementPingRequest.INSTANCE, null).getResult();

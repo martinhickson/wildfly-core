@@ -35,7 +35,7 @@ import org.jboss.as.controller.remote.ResponseAttachmentInputStreamSupport;
 import org.jboss.as.controller.remote.TransactionalProtocolClient;
 import org.jboss.as.controller.transform.Transformers;
 import org.jboss.dmr.ModelNode;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.jboss.as.controller.operations.DomainOperationTransmuter;
 
 /**
@@ -232,7 +232,7 @@ public class DomainSlaveHandler implements OperationStepHandler {
             for (final TransactionalProtocolClient.PreparedOperation<HostControllerUpdateTask.ProxyOperation> prepared : results) {
                 final String hostName = prepared.getOperation().getName();
                 final HostControllerUpdateTask.ExecutedHostRequest request = finalResults.get(hostName);
-                final AsyncFuture<OperationResponse> future = prepared.getFinalResult();
+                final CompletableFuture<OperationResponse> future = prepared.getFinalResult();
                 try {
                     final OperationResponse finalResponse = future.get(patient, TimeUnit.MILLISECONDS);
                     final ModelNode transformedResult = request.transformResult(finalResponse.getResponseNode());
@@ -247,7 +247,7 @@ public class DomainSlaveHandler implements OperationStepHandler {
 
                 } catch (InterruptedException e) {
                     interruptThread = true;
-                    future.asyncCancel(true);
+                    future.cancel(true);
                     // We suppressed an interrupt, so don't block indefinitely waiting for other responses;
                     // just grab them if they are already available
                     patient = patient == 0 ? 0 : 50; // if we were already really impatient, we still are
@@ -255,7 +255,7 @@ public class DomainSlaveHandler implements OperationStepHandler {
                 } catch (ExecutionException e) {
                     HOST_CONTROLLER_LOGGER.caughtExceptionAwaitingFinalResponse(e.getCause(), hostName);
                 } catch (TimeoutException e) {
-                    future.asyncCancel(true);
+                    future.cancel(true);
                     if (interruptThread) {
                         HOST_CONTROLLER_LOGGER.interruptedAwaitingFinalResponse(hostName);
                     } else {

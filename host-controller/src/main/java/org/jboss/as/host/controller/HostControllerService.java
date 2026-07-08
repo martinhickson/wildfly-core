@@ -54,7 +54,7 @@ import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.jboss.threads.EnhancedQueueExecutor;
 import org.jboss.threads.JBossThreadFactory;
 
@@ -63,7 +63,7 @@ import org.jboss.threads.JBossThreadFactory;
  *
  * @author Brian Stansberry (c) 2011 Red Hat Inc.
  */
-public class HostControllerService implements Service<AsyncFuture<ServiceContainer>> {
+public class HostControllerService implements Service<CompletableFuture<ServiceContainer>> {
 
     public static final ServiceName HC_SERVICE_NAME = ServiceName.JBOSS.append("host", "controller");
     /** @deprecated Use the org.wildfly.management.executor capability */
@@ -234,7 +234,7 @@ public class HostControllerService implements Service<AsyncFuture<ServiceContain
     }
 
     @Override
-    public AsyncFuture<ServiceContainer> getValue() throws IllegalStateException, IllegalArgumentException {
+    public CompletableFuture<ServiceContainer> getValue() throws IllegalStateException, IllegalArgumentException {
         return futureContainer;
     }
 

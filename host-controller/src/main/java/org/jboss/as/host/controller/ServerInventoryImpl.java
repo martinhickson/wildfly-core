@@ -52,7 +52,7 @@ import org.jboss.as.version.Version;
 import org.jboss.dmr.ModelNode;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.CloseHandler;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.credential.Credential;
 import org.wildfly.security.evidence.Evidence;
 import org.wildfly.security.provider.util.ProviderUtil;
@@ -390,7 +390,7 @@ public class ServerInventoryImpl implements ServerInventory {
                 try {
                     int blockingTimeoutValue = blockingTimeout.getProxyBlockingTimeout(server.getAddress(), server.getProxyController());
                     BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener = new  BlockingQueueOperationListener<>();
-                    AsyncFuture<OperationResponse> future = server.resume(listener);
+                    CompletableFuture<OperationResponse> future = server.resume(listener);
 
                     operationDataMap.put(serverName, this.new OperationData(blockingTimeoutValue, future, listener));
 
@@ -407,7 +407,7 @@ public class ServerInventoryImpl implements ServerInventory {
             final OperationData operationData = operationDataEntry.getValue();
             final String serverName = operationDataEntry.getKey();
             final int timeout = operationData.blockingTimeout;
-            final AsyncFuture<OperationResponse> future = operationData.future;
+            final CompletableFuture<OperationResponse> future = operationData.future;
             final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener = operationData.listener;
 
             try {
@@ -418,7 +418,7 @@ public class ServerInventoryImpl implements ServerInventory {
                     errorResults.add( new ModelNode(
                             HostControllerLogger.ROOT_LOGGER.timedOutAwaitingResumeResponseMsg(timeout, serverName)
                     ));
-                    future.asyncCancel(true);
+                    future.cancel(true);
                     continue;
                 }
                 if (prepared.isFailed()) {
@@ -432,20 +432,20 @@ public class ServerInventoryImpl implements ServerInventory {
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.interruptedAwaitingResumeResponseMsg(serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
                 Thread.currentThread().interrupt();
             } catch (TimeoutException e) {
                 HostControllerLogger.ROOT_LOGGER.timedOutAwaitingResumeResponse(timeout, serverName);
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.timedOutAwaitingResumeResponseMsg(timeout, serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
             } catch (ExecutionException e) {
                 HostControllerLogger.ROOT_LOGGER.resumeListenerFailed(e, serverName);
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.resumeListenerFailedMsg(serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
             }
         }
 
@@ -463,7 +463,7 @@ public class ServerInventoryImpl implements ServerInventory {
                 try {
                     int blockingTimeoutValue = blockingTimeout.getProxyBlockingTimeout(server.getAddress(), server.getProxyController());
                     BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener = new  BlockingQueueOperationListener<>();
-                    AsyncFuture<OperationResponse> future = server.suspend(timeoutInSeconds, listener);
+                    CompletableFuture<OperationResponse> future = server.suspend(timeoutInSeconds, listener);
 
                     operationDataMap.put(serverName, this.new OperationData(blockingTimeoutValue, future, listener));
 
@@ -480,7 +480,7 @@ public class ServerInventoryImpl implements ServerInventory {
             final OperationData operationData = operationDataEntry.getValue();
             final String serverName = operationDataEntry.getKey();
             final int timeout = operationData.blockingTimeout;
-            final AsyncFuture<OperationResponse> future = operationData.future;
+            final CompletableFuture<OperationResponse> future = operationData.future;
             final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener = operationData.listener;
 
             try {
@@ -491,7 +491,7 @@ public class ServerInventoryImpl implements ServerInventory {
                     errorResults.add( new ModelNode(
                             HostControllerLogger.ROOT_LOGGER.timedOutAwaitingSuspendResponseMsg(timeout, serverName)
                     ));
-                    future.asyncCancel(true);
+                    future.cancel(true);
                     continue;
                 }
                 if (prepared.isFailed()) {
@@ -505,20 +505,20 @@ public class ServerInventoryImpl implements ServerInventory {
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.interruptedAwaitingSuspendResponseMsg(serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
                 Thread.currentThread().interrupt();
             } catch (TimeoutException e) {
                 HostControllerLogger.ROOT_LOGGER.timedOutAwaitingSuspendResponse(timeout, serverName);
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.timedOutAwaitingSuspendResponseMsg(timeout, serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
             } catch (ExecutionException e) {
                 HostControllerLogger.ROOT_LOGGER.suspendListenerFailed(e, serverName);
                 errorResults.add( new ModelNode(
                         HostControllerLogger.ROOT_LOGGER.suspendListenerFailedMsg(serverName)
                 ));
-                future.asyncCancel(true);
+                future.cancel(true);
             }
         }
 
@@ -771,10 +771,10 @@ public class ServerInventoryImpl implements ServerInventory {
 
     private class OperationData {
         int blockingTimeout;
-        AsyncFuture<OperationResponse> future;
+        CompletableFuture<OperationResponse> future;
         BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener;
 
-        public OperationData(int blockingTimeout, AsyncFuture<OperationResponse> future, BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) {
+        public OperationData(int blockingTimeout, CompletableFuture<OperationResponse> future, BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) {
             this.blockingTimeout = blockingTimeout;
             this.future = future;
             this.listener = listener;

@@ -66,7 +66,7 @@ import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.Property;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.CloseHandler;
-import org.jboss.threads.AsyncFutureTask;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.common.Assert;
 
 /**
@@ -699,17 +699,13 @@ public class HostControllerRegistrationHandler implements ManagementRequestHandl
 
     }
 
-    abstract static class IOTask<T> extends AsyncFutureTask<T> {
-
-        IOTask() {
-            super(null);
-        }
+    abstract static class IOTask<T> extends CompletableFuture<T> {
 
         abstract void sendMessage(final FlushableDataOutput output) throws IOException;
 
         @SuppressWarnings("unchecked")
         boolean completeStep(Object result) {
-            return setResult((T) result);
+            return complete((T) result);
         }
 
         /**
@@ -718,7 +714,7 @@ public class HostControllerRegistrationHandler implements ManagementRequestHandl
          */
         boolean failed(Throwable t) {
             Assert.checkNotNullParam("Throwable", t);
-            return super.setFailed(t);
+            return completeExceptionally(t);
         }
     }
 

@@ -53,7 +53,7 @@ import org.jboss.marshalling.Marshalling;
 import org.jboss.marshalling.MarshallingConfiguration;
 import org.jboss.marshalling.SimpleClassResolver;
 import org.jboss.msc.service.ServiceActivator;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.credential.Credential;
 
 /**
@@ -725,7 +725,7 @@ class ManagedServer {
         return null;
     }
 
-    AsyncFuture<OperationResponse> resume(final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
+    CompletableFuture<OperationResponse> resume(final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
         final ModelNode operation = new ModelNode();
         operation.get(OP).set(RESUME);
         operation.get(OP_ADDR).setEmptyList();
@@ -733,7 +733,7 @@ class ManagedServer {
         return protocolClient.execute(listener, operation, OperationMessageHandler.DISCARD, OperationAttachments.EMPTY);
     }
 
-    AsyncFuture<OperationResponse> suspend(int timeoutInSeconds, final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
+    CompletableFuture<OperationResponse> suspend(int timeoutInSeconds, final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
         final ModelNode operation = new ModelNode();
         operation.get(OP).set(SUSPEND);
         operation.get(OP_ADDR).setEmptyList();
@@ -742,7 +742,7 @@ class ManagedServer {
         return protocolClient.execute(listener, operation, OperationMessageHandler.DISCARD, OperationAttachments.EMPTY);
     }
 
-    private AsyncFuture<OperationResponse> shutdown(int timeoutInSeconds, final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
+    private CompletableFuture<OperationResponse> shutdown(int timeoutInSeconds, final BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener) throws IOException {
         final ModelNode operation = new ModelNode();
         operation.get(OP).set(SHUTDOWN);
         operation.get(OP_ADDR).setEmptyList();
@@ -883,7 +883,7 @@ class ManagedServer {
                 //All catch use the suspend error log traces because the operation at the end is a suspend
                 if ( gracefulTimeout != null ){
                     BlockingQueueOperationListener<TransactionalProtocolClient.Operation> listener = new BlockingQueueOperationListener<>();
-                    AsyncFuture<OperationResponse> future = null;
+                    CompletableFuture<OperationResponse> future = null;
 
                     try {
                         future = shutdown(gracefulTimeout, listener);
@@ -902,12 +902,12 @@ class ManagedServer {
                         return false;
                     } catch (InterruptedException e) {
                         HostControllerLogger.ROOT_LOGGER.interruptedAwaitingSuspendResponse(e, serverName);
-                        future.asyncCancel(true);
+                        future.cancel(true);
                         Thread.currentThread().interrupt();
                         return false;
                     } catch (ExecutionException e) {
                         HostControllerLogger.ROOT_LOGGER.suspendListenerFailed(e, serverName);
-                        future.asyncCancel(true);
+                        future.cancel(true);
                         return false;
                     }
                 }

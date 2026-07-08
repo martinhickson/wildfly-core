@@ -28,7 +28,7 @@ import org.jboss.modules.Module;
 import org.jboss.modules.ModuleLoader;
 import org.jboss.msc.service.ServiceActivator;
 import org.jboss.msc.service.ServiceContainer;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.auth.server.SecurityIdentity;
 
 /**
@@ -49,7 +49,7 @@ public interface Bootstrap {
      * @param extraServices additional services to start and stop with the server instance
      * @return the future service container
      */
-    AsyncFuture<ServiceContainer> bootstrap(Configuration configuration, List<ServiceActivator> extraServices);
+    CompletableFuture<ServiceContainer> bootstrap(Configuration configuration, List<ServiceActivator> extraServices);
 
     /**
      * Calls {@link #bootstrap(Configuration, List)} to bootstrap the container. The value for the returned future
@@ -59,7 +59,7 @@ public interface Bootstrap {
      * @param extraServices additional services to start and stop with the server instance
      * @return the future service container
      */
-    AsyncFuture<ServiceContainer> startup(Configuration configuration, List<ServiceActivator> extraServices);
+    CompletableFuture<ServiceContainer> startup(Configuration configuration, List<ServiceActivator> extraServices);
 
     /**
      * Alerts this bootstrap instance that a failure has occurred during bootstrap or startup and it should

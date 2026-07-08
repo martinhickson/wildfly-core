@@ -63,7 +63,7 @@ import org.jboss.as.domain.controller.plan.ServerTaskExecutor;
 import org.jboss.as.host.controller.logging.HostControllerLogger;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.Property;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Formulates a rollout plan, invokes the proxies to execute it on the servers.
@@ -280,12 +280,7 @@ public class DomainRolloutStepHandler implements OperationStepHandler {
     }
 
     private void cancelPreferAsync(Future<?> future, boolean mayInterruptIfRunning) {
-
-        if (future instanceof AsyncFuture) { // the normal case
-            ((AsyncFuture) future).asyncCancel(mayInterruptIfRunning);
-        } else { // the ServerRequireRestartTask case, where we're interrupting a thread executing an op locally
-            future.cancel(mayInterruptIfRunning);
-        }
+        future.cancel(mayInterruptIfRunning);
     }
 
     private OperationResponse getCancelledResult() {

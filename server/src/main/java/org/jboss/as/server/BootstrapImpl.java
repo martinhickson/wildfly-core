@@ -9,6 +9,7 @@ import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.ObjectName;
@@ -30,9 +31,6 @@ import org.jboss.msc.service.ServiceActivator;
 import org.jboss.msc.service.ServiceContainer;
 import org.jboss.msc.service.ServiceController;
 import org.jboss.msc.service.ServiceTarget;
-import org.jboss.threads.AsyncFuture;
-import org.jboss.threads.AsyncFutureTask;
-import org.jboss.threads.JBossExecutors;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
 /**
@@ -55,7 +53,7 @@ final class BootstrapImpl implements Bootstrap {
     }
 
     @Override
-    public AsyncFuture<ServiceContainer> bootstrap(final Configuration configuration, final List<ServiceActivator> extraServices) {
+    public CompletableFuture<ServiceContainer> bootstrap(final Configuration configuration, final List<ServiceActivator> extraServices) {
         assert !shutdownHook.down;
         try {
             return internalBootstrap(configuration, extraServices);
@@ -66,7 +64,7 @@ final class BootstrapImpl implements Bootstrap {
         }
     }
 
-    private AsyncFuture<ServiceContainer> internalBootstrap(final Configuration configuration, final List<ServiceActivator> extraServices) {
+    private CompletableFuture<ServiceContainer> internalBootstrap(final Configuration configuration, final List<ServiceActivator> extraServices) {
         try {
             final Object value = ManagementFactory.getPlatformMBeanServer().getAttribute(new ObjectName("java.lang", "type", "OperatingSystem"), "MaxFileDescriptorCount");
             final long fdCount = Long.parseLong(value.toString());
@@ -160,11 +158,11 @@ final class BootstrapImpl implements Bootstrap {
 
     @Override
     @SuppressWarnings("unchecked")
-    public AsyncFuture<ServiceContainer> startup(Configuration configuration, List<ServiceActivator> extraServices) {
+    public CompletableFuture<ServiceContainer> startup(Configuration configuration, List<ServiceActivator> extraServices) {
         try {
             ServiceContainer container = bootstrap(configuration, extraServices).get();
             ServiceController<?> controller = container.getRequiredService(Services.JBOSS_AS);
-            return (AsyncFuture<ServiceContainer>) controller.getValue();
+            return (CompletableFuture<ServiceContainer>) controller.getValue();
         } catch (Exception ex) {
             shutdownHook.shutdown(true);
             throw ServerLogger.ROOT_LOGGER.cannotStartServer(ex);
@@ -176,26 +174,21 @@ final class BootstrapImpl implements Bootstrap {
         shutdownHook.shutdown(true);
     }
 
-    static class FutureServiceContainer extends AsyncFutureTask<ServiceContainer> {
+    static class FutureServiceContainer extends CompletableFuture<ServiceContainer> {
         private final ServiceContainer container;
         FutureServiceContainer(final ServiceContainer container) {
-            super(JBossExecutors.directExecutor());
             this.container = container;
         }
 
         @Override
-        public void asyncCancel(final boolean interruptionDesired) {
+        public boolean cancel(boolean mayInterruptIfRunning) {
             container.shutdown();
-            container.addTerminateListener(new ServiceContainer.TerminateListener() {
-                @Override
-                public void handleTermination(final Info info) {
-                    setCancelled();
-                }
-            });
+            container.addTerminateListener(info -> cancel(false));
+            return super.cancel(mayInterruptIfRunning);
         }
 
         void done() {
-            setResult(container);
+            complete(container);
         }
 
         /**
@@ -203,7 +196,7 @@ final class BootstrapImpl implements Bootstrap {
          */
         void failed(final Throwable t) {
             Throwable cause = t != null ? t : ServerLogger.ROOT_LOGGER.throwableIsNull();
-            setFailed(cause);
+            completeExceptionally(cause);
         }
     }
 
@@ -218,6 +211,11 @@ final class BootstrapImpl implements Bootstrap {
             Runtime.getRuntime().addShutdownHook(this);
             synchronized (this) {
                 if (!down) {
+                    // WFLY-7045 JBoss Threads will turn off statistics tracking in a static initializer,
+                    // preventing our management API working, unless we tell it not to
+                    if (WildFlySecurityManager.getPropertyPrivileged("jboss.threads.eqe.statistics", null) == null) {
+                        WildFlySecurityManager.setPropertyPrivileged("jboss.threads.eqe.statistics", "true");
+                    }
                     container = ServiceContainer.Factory.create("jboss-as", MAX_THREADS, 30, TimeUnit.SECONDS, false);
                     return container;
                 } else {
@@ -292,7 +290,13 @@ final class BootstrapImpl implements Bootstrap {
                     // If necessary we'll wait 500 ms longer for it in the off chance a gc or something delays things
                     suspend.completeOnTimeout(null, millis + 500, TimeUnit.MILLISECONDS);
                 }
-                suspend.join();
+                try {
+                    suspend.get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException e) {
+                    ServerLogger.ROOT_LOGGER.caughtExceptionDuringShutdown(e);
+                }
             }
         }
 

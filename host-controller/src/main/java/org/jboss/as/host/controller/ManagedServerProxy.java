@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import org.jboss.as.controller.client.OperationAttachments;
 import org.jboss.as.controller.client.OperationMessageHandler;
@@ -21,7 +22,6 @@ import org.jboss.as.controller.remote.TransactionalProtocolHandlers;
 import org.jboss.as.host.controller.logging.HostControllerLogger;
 import org.jboss.as.server.operations.ServerProcessStateHandler;
 import org.jboss.dmr.ModelNode;
-import org.jboss.threads.AsyncFuture;
 
 /**
  * A proxy dispatching operations to the managed server.
@@ -33,7 +33,7 @@ class ManagedServerProxy implements TransactionalProtocolClient {
     private static final TransactionalProtocolClient DISCONNECTED = new DisconnectedProtocolClient();
 
     private final ManagedServer server;
-    private final Map<TransactionalProtocolClient, Set<AsyncFuture<OperationResponse>>> activeRequests = new HashMap<>();
+    private final Map<TransactionalProtocolClient, Set<CompletableFuture<OperationResponse>>> activeRequests = new HashMap<>();
     private volatile TransactionalProtocolClient remoteClient;
 
     ManagedServerProxy(final ManagedServer server) {
@@ -50,10 +50,10 @@ class ManagedServerProxy implements TransactionalProtocolClient {
             remoteClient = DISCONNECTED;
 
             // Cancel any inflight requests from the old TransactionalProtocolClient
-            Set<AsyncFuture<OperationResponse>> inFlight = activeRequests.remove(old);
+            Set<CompletableFuture<OperationResponse>> inFlight = activeRequests.remove(old);
             if (inFlight != null) {
-                for (AsyncFuture<OperationResponse> future : inFlight) {
-                    future.asyncCancel(true);
+                for (CompletableFuture<OperationResponse> future : inFlight) {
+                    future.cancel(true);
                 }
             }
             return true;
@@ -62,12 +62,12 @@ class ManagedServerProxy implements TransactionalProtocolClient {
     }
 
     @Override
-    public AsyncFuture<OperationResponse> execute(final TransactionalOperationListener<Operation> listener, final ModelNode operation, final OperationMessageHandler messageHandler, final OperationAttachments attachments) throws IOException {
+    public CompletableFuture<OperationResponse> execute(final TransactionalOperationListener<Operation> listener, final ModelNode operation, final OperationMessageHandler messageHandler, final OperationAttachments attachments) throws IOException {
         return execute(listener, TransactionalProtocolHandlers.wrap(operation, messageHandler, attachments));
     }
 
     @Override
-    public <T extends Operation> AsyncFuture<OperationResponse> execute(final TransactionalOperationListener<T> listener, final T operation) throws IOException {
+    public <T extends Operation> CompletableFuture<OperationResponse> execute(final TransactionalOperationListener<T> listener, final T operation) throws IOException {
         final TransactionalProtocolClient remoteClient = this.remoteClient;
         final ModelNode op = operation.getOperation();
 
@@ -78,18 +78,18 @@ class ManagedServerProxy implements TransactionalProtocolClient {
                 server.requireReload();
             }
         }
-        AsyncFuture<OperationResponse> future = remoteClient.execute(listener, operation);
+        CompletableFuture<OperationResponse> future = remoteClient.execute(listener, operation);
         registerFuture(remoteClient, future);
         return future;
     }
 
-    private synchronized void registerFuture(TransactionalProtocolClient remoteClient, AsyncFuture<OperationResponse> future) {
+    private synchronized void registerFuture(TransactionalProtocolClient remoteClient, CompletableFuture<OperationResponse> future) {
         if (this.remoteClient != remoteClient) {
             // We were disconnected. Just cancel this future
-            future.asyncCancel(true);
+            future.cancel(true);
         } else {
             // Track the future for cancellation on disconnect
-            Set<AsyncFuture<OperationResponse>> futures = activeRequests.get(remoteClient);
+            Set<CompletableFuture<OperationResponse>> futures = activeRequests.get(remoteClient);
             if (futures == null) {
                 futures = new HashSet<>();
                 activeRequests.put(remoteClient, futures);
@@ -97,29 +97,12 @@ class ManagedServerProxy implements TransactionalProtocolClient {
             futures.add(future);
 
             // Make sure we clean up
-            // ignore the 1st parameter of handle* callbacks, that's the _underlying_ future,
-            // not the one just added to the "futures" set
-            future.addListener(new AsyncFuture.Listener<OperationResponse, TransactionalProtocolClient>() {
-                @Override
-                public void handleComplete(AsyncFuture<? extends OperationResponse> ignored, TransactionalProtocolClient attachment) {
-                    futureDone(attachment, future);
-                }
-
-                @Override
-                public void handleFailed(AsyncFuture<? extends OperationResponse> ignored, Throwable cause, TransactionalProtocolClient attachment) {
-                    futureDone(attachment, future);
-                }
-
-                @Override
-                public void handleCancelled(AsyncFuture<? extends OperationResponse> ignored, TransactionalProtocolClient attachment) {
-                    futureDone(attachment, future);
-                }
-            }, remoteClient);
+            future.whenComplete((ignored, cause) -> futureDone(remoteClient, future));
         }
     }
 
-    private synchronized void futureDone(TransactionalProtocolClient remoteClient, AsyncFuture<? extends OperationResponse> future) {
-        Set<AsyncFuture<OperationResponse>> futures = activeRequests.get(remoteClient);
+    private synchronized void futureDone(TransactionalProtocolClient remoteClient, CompletableFuture<? extends OperationResponse> future) {
+        Set<CompletableFuture<OperationResponse>> futures = activeRequests.get(remoteClient);
         if (futures != null) {
             //noinspection SuspiciousMethodCalls
             futures.remove(future);
@@ -130,12 +113,12 @@ class ManagedServerProxy implements TransactionalProtocolClient {
     static final class DisconnectedProtocolClient implements TransactionalProtocolClient {
 
         @Override
-        public AsyncFuture<OperationResponse> execute(TransactionalOperationListener<Operation> listener, ModelNode operation, OperationMessageHandler messageHandler, OperationAttachments attachments) throws IOException {
+        public CompletableFuture<OperationResponse> execute(TransactionalOperationListener<Operation> listener, ModelNode operation, OperationMessageHandler messageHandler, OperationAttachments attachments) throws IOException {
             return execute(listener, TransactionalProtocolHandlers.wrap(operation, messageHandler, attachments));
         }
 
         @Override
-        public <T extends Operation> AsyncFuture<OperationResponse> execute(TransactionalOperationListener<T> listener, T operation) throws IOException {
+        public <T extends Operation> CompletableFuture<OperationResponse> execute(TransactionalOperationListener<T> listener, T operation) throws IOException {
             throw HostControllerLogger.ROOT_LOGGER.channelClosed();
         }
 

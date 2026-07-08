@@ -17,7 +17,7 @@ import org.jboss.as.controller.client.OperationResponse;
 import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.logging.ControllerLogger;
 import org.jboss.dmr.ModelNode;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Basic operation listener backed by a blocking queue. If the limit of the queue is reached prepared operations
@@ -166,8 +166,8 @@ public class BlockingQueueOperationListener<T extends TransactionalProtocolClien
         }
 
         @Override
-        public AsyncFuture<OperationResponse> getFinalResult() {
-            return new CompletedFuture<>(OperationResponse.Factory.createSimple(finalResult));
+        public CompletableFuture<OperationResponse> getFinalResult() {
+            return CompletableFuture.completedFuture(OperationResponse.Factory.createSimple(finalResult));
         }
 
         @Override
@@ -234,8 +234,8 @@ public class BlockingQueueOperationListener<T extends TransactionalProtocolClien
         }
 
         @Override
-        public AsyncFuture<OperationResponse> getFinalResult() {
-            return new CompletedFuture<>(OperationResponse.Factory.createSimple(finalResult));
+        public CompletableFuture<OperationResponse> getFinalResult() {
+            return CompletableFuture.completedFuture(OperationResponse.Factory.createSimple(finalResult));
         }
 
         @Override

@@ -31,7 +31,7 @@ import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
-import org.jboss.threads.AsyncFutureTask;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.common.Assert;
 import org.wildfly.security.evidence.Evidence;
 
@@ -158,19 +158,15 @@ class ServerInventoryService implements Service<ServerInventory> {
         return client;
     }
 
-    private class FutureServerInventory extends AsyncFutureTask<ServerInventory>{
-
-        protected FutureServerInventory() {
-            super(null);
-        }
+    private class FutureServerInventory extends CompletableFuture<ServerInventory> {
 
         private void setInventory(ServerInventory inventory) {
-            super.setResult(inventory);
+            complete(inventory);
         }
 
         private void setFailure(final Throwable t) {
             Assert.checkNotNullParam("Throwable", t);
-            super.setFailed(t);
+            completeExceptionally(t);
         }
     }
 

@@ -228,7 +228,7 @@ class HostControllerConnection extends FutureManagementChannel {
     synchronized void started() {
         try {
             if(isConnected()) {
-                channelHandler.executeRequest(new ServerStartedRequest(), null).getResult().await();
+                channelHandler.executeRequest(new ServerStartedRequest(), null).getResult().get();
             }
         } catch (Exception e) {
             ServerLogger.AS_ROOT_LOGGER.debugf(e, "failed to send started notification");

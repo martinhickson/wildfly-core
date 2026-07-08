@@ -43,7 +43,7 @@ import org.jboss.msc.service.ServiceContainer;
 import org.jboss.msc.service.ServiceName;
 import org.jboss.msc.service.ServiceRegistryException;
 import org.jboss.msc.service.ServiceTarget;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
 /**
@@ -108,7 +108,7 @@ public final class ServerStartTask implements ServerTask, Serializable, ObjectIn
     }
 
     @Override
-    public AsyncFuture<ServiceContainer> run(final List<ServiceActivator> runServices) {
+    public CompletableFuture<ServiceContainer> run(final List<ServiceActivator> runServices) {
         final Bootstrap bootstrap = Bootstrap.Factory.newInstance();
         final ProductConfig productConfig = ProductConfig.fromFilesystemSlot(Module.getBootModuleLoader(), home, properties);
         // Create server environment on the server, so that the system properties are getting initialized on the right side

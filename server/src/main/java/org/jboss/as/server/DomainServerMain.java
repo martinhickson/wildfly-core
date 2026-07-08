@@ -46,7 +46,7 @@ import org.jboss.stdio.LoggingOutputStream;
 import org.jboss.stdio.NullInputStream;
 import org.jboss.stdio.SimpleStdioContextSelector;
 import org.jboss.stdio.StdioContext;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 import org.wildfly.security.auth.client.AuthenticationContext;
 
 /**
@@ -75,8 +75,8 @@ public final class DomainServerMain {
      */
     public static void main(String[] args) {
 
+        // Get a ref to the original stdin before we install JBoss Stdio
         final InputStream initialInput = new Base64InputStream(System.in);
-        final PrintStream initialError = System.err;
 
         // Make sure our original stdio is properly captured.
         try {
@@ -107,7 +107,7 @@ public final class DomainServerMain {
         try {
             readFully(initialInput, asAuthBytes);
         } catch (IOException e) {
-            e.printStackTrace();
+            ServerLogger.ROOT_LOGGER.caughtExceptionDuringBoot(e);
             SystemExiter.abort(ExitCodes.FAILED);
             throw new IllegalStateException(); // not reached
         }
@@ -115,7 +115,7 @@ public final class DomainServerMain {
         final MarshallerFactory factory = Marshalling.getMarshallerFactory("river", DomainServerMain.class.getClassLoader());
         final Unmarshaller unmarshaller;
         final ByteInput byteInput;
-        final AsyncFuture<ServiceContainer> containerFuture;
+        final CompletableFuture<ServiceContainer> containerFuture;
         try {
             Module.registerURLStreamHandlerFactoryModule(Module.getBootModuleLoader().loadModule("org.jboss.vfs"));
             final MarshallingConfiguration configuration = new MarshallingConfiguration();
@@ -133,7 +133,7 @@ public final class DomainServerMain {
                 }
             }));
         } catch (Throwable t) {
-            t.printStackTrace(initialError);
+            ServerLogger.ROOT_LOGGER.caughtExceptionDuringBoot(t);
             SystemExiter.abort(ExitCodes.FAILED);
             throw new IllegalStateException(); // not reached
         }
@@ -168,7 +168,7 @@ public final class DomainServerMain {
                 // this means it's time to exit
                 break;
             } catch (Throwable t) {
-                t.printStackTrace();
+                ServerLogger.ROOT_LOGGER.caughtExceptionDuringBoot(t);
                 caught = t;
                 break;
             }
@@ -179,10 +179,12 @@ public final class DomainServerMain {
         CompletionStage<Void> suspendStage = ServerDomainProcessShutdownHandler.SUSPEND_STAGE.get();
         try {
             if (suspendStage != null) {
-                suspendStage.toCompletableFuture().join();
+                suspendStage.toCompletableFuture().get();
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } catch (Throwable e) {
-            e.printStackTrace();
+            ServerLogger.ROOT_LOGGER.caughtExceptionDuringShutdown(e);
         } finally {
             if (caught == null) {
                 SystemExiter.logAndExit(ServerLogger.ROOT_LOGGER::shuttingDownInResponseToProcessControllerSignal, ExitCodes.NORMAL);

@@ -9,7 +9,7 @@ import org.jboss.as.protocol.logging.ProtocolLogger;
 import org.jboss.remoting3.Attachments;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.Connection;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,7 +28,7 @@ public final class ManagementChannelHandler extends AbstractMessageHandler imple
     /**
      * Optional attachment for a temp file directory.
      */
-    public static final Attachments.Key<File> TEMP_DIR = new Attachments.Key<File>(File.class);
+    public static final Attachments.Key<File> TEMP_DIR = new Attachments.Key<>(File.class);
 
     private static final AtomicReferenceFieldUpdater<ManagementChannelHandler, ManagementRequestHandlerFactory[]> updater = AtomicReferenceFieldUpdater.newUpdater(ManagementChannelHandler.class, ManagementRequestHandlerFactory[].class, "handlers");
     private static final ManagementRequestHandlerFactory[] NO_HANDLERS = new ManagementRequestHandlerFactory[0];
@@ -82,7 +82,7 @@ public final class ManagementChannelHandler extends AbstractMessageHandler imple
     }
 
     @Override
-    public <T, A> ActiveOperation<T, A> initializeOperation(A attachment, ActiveOperation.CompletedCallback<T> callback) throws IOException {
+    public <T, A> ActiveOperation<T, A> initializeOperation(A attachment, ActiveOperation.CompletedCallback<T> callback) {
         return super.registerActiveOperation(attachment, callback);
     }
 
@@ -104,7 +104,7 @@ public final class ManagementChannelHandler extends AbstractMessageHandler imple
 
     /** {@inheritDoc} */
     @Override
-    public <T, A> AsyncFuture<T> executeRequest(final Integer operationId, final ManagementRequest<T, A> request) throws IOException {
+    public <T, A> CompletableFuture<T> executeRequest(final Integer operationId, final ManagementRequest<T, A> request) throws IOException {
         final ActiveOperation<T, A> operation = super.getActiveOperation(operationId);
         if(operation == null) {
             throw ProtocolLogger.ROOT_LOGGER.responseHandlerNotFound(operationId);
@@ -114,7 +114,7 @@ public final class ManagementChannelHandler extends AbstractMessageHandler imple
 
     /** {@inheritDoc} */
     @Override
-    public <T, A> AsyncFuture<T> executeRequest(final ActiveOperation<T, A> support, final ManagementRequest<T, A> request) throws IOException {
+    public <T, A> CompletableFuture<T> executeRequest(final ActiveOperation<T, A> support, final ManagementRequest<T, A> request) throws IOException {
         return super.executeRequest(request, strategy.getChannel(), support);
     }
 
@@ -223,5 +223,4 @@ public final class ManagementChannelHandler extends AbstractMessageHandler imple
             }
         }
     }
-
 }

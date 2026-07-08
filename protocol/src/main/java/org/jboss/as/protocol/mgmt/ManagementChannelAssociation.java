@@ -7,7 +7,7 @@ package org.jboss.as.protocol.mgmt;
 
 import org.jboss.remoting3.Attachments;
 import org.jboss.remoting3.Channel;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 import java.io.IOException;
 
@@ -26,7 +26,7 @@ public interface ManagementChannelAssociation {
      * @param <T> the result type
      * @param <A> the attachment type
      * @return the created active operation
-     * @throws IOException
+     * @throws IOException if a problem occurs executing the request
      */
     <T, A> ActiveOperation<T, A> executeRequest(final ManagementRequest<T, A> request, A attachment) throws IOException;
 
@@ -39,7 +39,7 @@ public interface ManagementChannelAssociation {
      * @param <T> the result type
      * @param <A> the attachment type
      * @return the created active operation
-     * @throws IOException
+     * @throws IOException  if a problem occurs executing the request
      */
     <T, A> ActiveOperation<T, A> executeRequest(final ManagementRequest<T, A> request, A attachment, ActiveOperation.CompletedCallback<T> callback) throws IOException;
 
@@ -51,9 +51,9 @@ public interface ManagementChannelAssociation {
      * @param <T> the request type
      * @param <A> the attachment type
      * @return the future result
-     * @throws IOException
+     * @throws IOException if a problem occurs executing the request
      */
-    <T, A> AsyncFuture<T> executeRequest(final Integer operationId, final ManagementRequest<T, A> request) throws IOException;
+    <T, A> CompletableFuture<T> executeRequest(final Integer operationId, final ManagementRequest<T, A> request) throws IOException;
 
     /**
      * Execute a request based on an existing active operation.
@@ -63,9 +63,9 @@ public interface ManagementChannelAssociation {
      * @param <T> the result type
      * @param <A> the attachment type
      * @return the future result
-     * @throws IOException
+     * @throws IOException if a problem occurs executing the request
      */
-    <T, A> AsyncFuture<T> executeRequest(final ActiveOperation<T, A> operation, final ManagementRequest<T, A> request) throws IOException;
+    <T, A> CompletableFuture<T> executeRequest(final ActiveOperation<T, A> operation, final ManagementRequest<T, A> request) throws IOException;
 
     /**
      * Initialize a new {@link ActiveOperation}, for subsequent use with {@link #executeRequest(ActiveOperation, ManagementRequest)}.
@@ -75,15 +75,14 @@ public interface ManagementChannelAssociation {
      * @param <T> the result type
      * @param <A> the attachment type
      * @return the created active operation
-     * @throws IOException
      */
-    <T, A> ActiveOperation<T, A> initializeOperation(A attachment, ActiveOperation.CompletedCallback<T> callback) throws IOException;
+    <T, A> ActiveOperation<T, A> initializeOperation(A attachment, ActiveOperation.CompletedCallback<T> callback);
 
     /**
      * Get the underlying remoting channel associated with this context.
      *
      * @return the channel
-     * @throws IOException
+     * @throws IOException if a problem occurs obtaining the channel
      */
     Channel getChannel() throws IOException;
 

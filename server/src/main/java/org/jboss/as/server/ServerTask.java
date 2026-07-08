@@ -8,11 +8,11 @@ package org.jboss.as.server;
 import java.util.List;
 import org.jboss.msc.service.ServiceActivator;
 import org.jboss.msc.service.ServiceContainer;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public interface ServerTask {
-    AsyncFuture<ServiceContainer> run(List<ServiceActivator> startServices);
+    CompletableFuture<ServiceContainer> run(List<ServiceActivator> startServices);
 }

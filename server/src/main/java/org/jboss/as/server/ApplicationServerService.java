@@ -42,14 +42,14 @@ import org.jboss.msc.service.ServiceTarget;
 import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
-import org.jboss.threads.AsyncFuture;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * The root service for an Application Server process.
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-final class ApplicationServerService implements Service<AsyncFuture<ServiceContainer>> {
+final class ApplicationServerService implements Service<CompletableFuture<ServiceContainer>> {
 
     private final List<ServiceActivator> extraServices;
     private final Bootstrap.Configuration configuration;
@@ -208,7 +208,7 @@ final class ApplicationServerService implements Service<AsyncFuture<ServiceConta
     }
 
     @Override
-    public AsyncFuture<ServiceContainer> getValue() throws IllegalStateException, IllegalArgumentException {
+    public CompletableFuture<ServiceContainer> getValue() throws IllegalStateException, IllegalArgumentException {
         return futureContainer;
     }
 

@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +46,6 @@ import org.jboss.as.protocol.mgmt.support.ManagementChannelInitialization;
 import org.jboss.dmr.ModelNode;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.CloseHandler;
-import org.jboss.threads.AsyncFutureTask;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -144,7 +144,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
         final AtomicBoolean prepared = new AtomicBoolean();
         final AtomicBoolean completed = new AtomicBoolean();
-        final TestFuture<ModelNode> failure = new TestFuture<>();
+        final CompletableFuture<ModelNode> failure = new CompletableFuture<>();
         proxyController.execute(operation,
                 null,
                 new ProxyOperationControl() {
@@ -156,7 +156,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
                     @Override
                     public void operationFailed(ModelNode response) {
-                        failure.done(response);
+                        failure.complete(response);
                     }
 
                     @Override
@@ -187,7 +187,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
         final AtomicBoolean prepared = new AtomicBoolean();
         final AtomicBoolean completed = new AtomicBoolean();
-        final TestFuture<ModelNode> failure = new TestFuture<>();
+        final CompletableFuture<ModelNode> failure = new CompletableFuture<>();
         proxyController.execute(operation,
                 null,
                 new ProxyOperationControl() {
@@ -199,7 +199,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
                     @Override
                     public void operationFailed(ModelNode response) {
-                        failure.done(response);
+                        failure.complete(response);
                     }
 
                     @Override
@@ -250,17 +250,17 @@ public class RemoteProxyControllerProtocolTestCase {
         operation.get("test").set("123");
 
         final AtomicBoolean failed = new AtomicBoolean();
-        final TestFuture<ModelNode> prepared = new TestFuture<ModelNode>();
-        final TestFuture<OperationTransaction> preparedTx = new TestFuture<OperationTransaction>();
-        final TestFuture<OperationResponse> result = new TestFuture<>();
+        final CompletableFuture<ModelNode> prepared = new CompletableFuture<>();
+        final CompletableFuture<OperationTransaction> preparedTx = new CompletableFuture<>();
+        final CompletableFuture<OperationResponse> result = new CompletableFuture<>();
         proxyController.execute(operation,
                 null,
                 new ProxyOperationControl() {
 
                     @Override
                     public void operationPrepared(OperationTransaction transaction, ModelNode result) {
-                        prepared.done(result);
-                        preparedTx.done(transaction);
+                        prepared.complete(result);
+                        preparedTx.complete(transaction);
                     }
 
                     @Override
@@ -270,7 +270,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
                     @Override
                     public void operationCompleted(OperationResponse response) {
-                        result.done(response);
+                        result.complete(response);
                     }
                 },
                 null, null);
@@ -322,17 +322,17 @@ public class RemoteProxyControllerProtocolTestCase {
         operation.get("test").set("123");
 
         final AtomicBoolean failed = new AtomicBoolean();
-        final TestFuture<ModelNode> prepared = new TestFuture<ModelNode>();
-        final TestFuture<OperationTransaction> preparedTx = new TestFuture<OperationTransaction>();
-        final TestFuture<OperationResponse> result = new TestFuture<>();
+        final CompletableFuture<ModelNode> prepared = new CompletableFuture<>();
+        final CompletableFuture<OperationTransaction> preparedTx = new CompletableFuture<>();
+        final CompletableFuture<OperationResponse> result = new CompletableFuture<>();
         proxyController.execute(operation,
                 null,
                 new ProxyOperationControl() {
 
                     @Override
                     public void operationPrepared(OperationTransaction transaction, ModelNode result) {
-                        prepared.done(result);
-                        preparedTx.done(transaction);
+                        prepared.complete(result);
+                        preparedTx.complete(transaction);
                     }
 
                     @Override
@@ -342,7 +342,7 @@ public class RemoteProxyControllerProtocolTestCase {
 
                     @Override
                     public void operationCompleted(OperationResponse response) {
-                        result.done(response);
+                        result.complete(response);
                     }
                 },
                 null, null);
@@ -604,16 +604,6 @@ public class RemoteProxyControllerProtocolTestCase {
             }
         }
 
-    }
-
-    private static class TestFuture<T> extends AsyncFutureTask<T>{
-        protected TestFuture() {
-            super(null);
-        }
-
-        void done(T result) {
-            super.setResult(result);
-        }
     }
 
 }

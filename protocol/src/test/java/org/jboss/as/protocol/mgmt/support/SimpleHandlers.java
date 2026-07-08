@@ -6,6 +6,7 @@ package org.jboss.as.protocol.mgmt.support;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,8 +25,6 @@ import org.jboss.as.protocol.mgmt.ManagementRequestHeader;
 import org.jboss.as.protocol.mgmt.ProtocolUtils;
 import org.jboss.remoting3.Channel;
 import org.jboss.remoting3.CloseHandler;
-import org.jboss.threads.AsyncFuture;
-
 
 /**
  *
@@ -182,7 +181,7 @@ public class SimpleHandlers {
             return execute(request).get();
         }
 
-        public AsyncFuture<Integer> execute(ManagementRequest<Integer, Void> request) {
+        public CompletableFuture<Integer> execute(ManagementRequest<Integer, Void> request) {
             final ActiveOperation<Integer, Void> support = super.registerActiveOperation(null);
             return super.executeRequest(request, channel, support);
         }

@@ -7,16 +7,17 @@ package org.jboss.as.protocol.mgmt;
 import java.io.DataInput;
 import java.io.IOException;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.jboss.as.protocol.mgmt.support.RemoteChannelPairSetup;
 import org.jboss.as.protocol.mgmt.support.RemotingChannelPairSetup;
 import org.jboss.as.protocol.mgmt.support.SimpleHandlers;
 import org.jboss.as.protocol.mgmt.support.SimpleHandlers.SimpleClient;
-import org.jboss.threads.AsyncFuture;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -162,7 +163,7 @@ public class RemoteChannelManagementTestCase {
         // however once the channel gets closed the request should get cancelled
         final SimpleClient client = SimpleClient.create(channels);
         final SimpleHandlers.Request request = new SimpleHandlers.Request(SimpleHandlers.REQUEST_WITH_NO_RESPONSE, 600);
-        final AsyncFuture<Integer> future = client.execute(request);
+        final CompletableFuture<Integer> future = client.execute(request);
         try {
             future.get(1, TimeUnit.SECONDS);
             Assert.fail();
@@ -178,7 +179,7 @@ public class RemoteChannelManagementTestCase {
         } catch(CancellationException expected) {
             //
         }
-        Assert.assertEquals(AsyncFuture.Status.CANCELLED, future.getStatus());
+        Assert.assertTrue(future.isCancelled());
     }
 
     @Test
@@ -205,12 +206,17 @@ public class RemoteChannelManagementTestCase {
                 });
             }
         };
-        final AsyncFuture<Integer> future = client.execute(request);
-        final AsyncFuture.Status completed = future.await(1, TimeUnit.SECONDS);
-        Assert.assertEquals(AsyncFuture.Status.WAITING, completed);
+        final CompletableFuture<Integer> future = client.execute(request);
+        try {
+            future.get(1, TimeUnit.SECONDS);
+            Assert.fail("Expected future to still be waiting");
+        } catch (TimeoutException expected) {
+            //
+        }
+        Assert.assertFalse(future.isDone());
         future.cancel(false);
         latch.await();
-        Assert.assertEquals(AsyncFuture.Status.CANCELLED, future.getStatus());
+        Assert.assertTrue(future.isCancelled());
     }
 
     @Test
@@ -230,9 +236,14 @@ public class RemoteChannelManagementTestCase {
                 });
             }
         };
-        final AsyncFuture<Integer> future = client.execute(request);
-        final AsyncFuture.Status completed = future.await(1, TimeUnit.SECONDS);
-        Assert.assertEquals(AsyncFuture.Status.WAITING, completed);
+        final CompletableFuture<Integer> future = client.execute(request);
+        try {
+            future.get(1, TimeUnit.SECONDS);
+            Assert.fail("Expected future to still be waiting");
+        } catch (TimeoutException expected) {
+            //
+        }
+        Assert.assertFalse(future.isDone());
         client.shutdown();
         boolean done = client.awaitCompletion(1, TimeUnit.SECONDS);
         Assert.assertFalse(done);

@@ -1,0 +1,38 @@
+name: jboss-threads 3.6.1 compile probe
+
+on:
+  push:
+    branches:
+      - test/jboss-threads-3.6.1
+  workflow_dispatch:
+
+jobs:
+  compile:
+    name: Compile wildfly-core with jboss-threads 3.6.1.Final
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Show jboss-threads version
+        run: grep -n "version.org.jboss.threads" pom.xml
+
+      - name: Compile (skip tests)
+        run: mvn -B -ntp clean compile -DskipTests
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compile-failure-log
+          path: |
+            **/target/**/*.txt
+            **/surefire-reports/**
+          if-no-files-found: ignore

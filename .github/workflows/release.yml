@@ -1,0 +1,318 @@
+name: Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 28.0.2-bravura-2)'
+        required: true
+        default: '28.0.2-bravura-2'
+        type: string
+      release_branch:
+        description: 'Release branch name'
+        required: true
+        default: 'release/28.0.2-bravura-2'
+        type: string
+      source_branch:
+        description: 'Source branch to create release from'
+        required: true
+        default: '28.0.1-maintenance'
+        type: string
+      upload_to_github_packages:
+        description: 'Upload Maven artifacts to GitHub Packages?'
+        required: false
+        default: false
+        type: boolean
+      deploy_to_maven_central:
+        description: 'Publish to Maven Central when the source branch has the central-release profile'
+        required: false
+        default: true
+        type: boolean
+      central_group_id:
+        description: 'Maven groupId for Maven Central (verified namespace)'
+        required: false
+        default: 'io.github.martinhickson'
+        type: string
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Temurin 11 (JDK 11)
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install Maven 3.8.9
+        run: |
+          base=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.8.9
+          curl -fsSL -o "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" "$base/apache-maven-3.8.9-bin.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz.sha1" "$base/apache-maven-3.8.9-bin.tar.gz.sha1"
+          echo "$(tr -d '[:space:]' < "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz.sha1")  $RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" | sha1sum -c -
+          tar -xzf "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-3.8.9/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all refs
+        run: |
+          git fetch --all --tags
+
+      - name: Create or checkout release branch
+        run: |
+          SOURCE_BRANCH="${{ github.event.inputs.source_branch }}"
+          RELEASE_BRANCH="${{ github.event.inputs.release_branch }}"
+          
+          # Verify source branch exists
+          if ! git show-ref --verify --quiet refs/remotes/origin/$SOURCE_BRANCH; then
+            echo "Error: Source branch '$SOURCE_BRANCH' does not exist remotely"
+            exit 1
+          fi
+          echo "Source branch is: $SOURCE_BRANCH"
+          
+          # Checkout source branch first
+          git checkout $SOURCE_BRANCH
+          git pull origin $SOURCE_BRANCH
+          
+          # Check if release branch exists locally
+          if git show-ref --verify --quiet refs/heads/$RELEASE_BRANCH; then
+            echo "Release branch $RELEASE_BRANCH already exists locally, checking out..."
+            git checkout $RELEASE_BRANCH
+            git pull origin $RELEASE_BRANCH || true
+          # Check if release branch exists remotely
+          elif git show-ref --verify --quiet refs/remotes/origin/$RELEASE_BRANCH; then
+            echo "Release branch $RELEASE_BRANCH exists remotely, checking out..."
+            git checkout -b $RELEASE_BRANCH origin/$RELEASE_BRANCH
+          else
+            echo "Creating new release branch $RELEASE_BRANCH from source branch $SOURCE_BRANCH..."
+            git checkout -b $RELEASE_BRANCH
+          fi
+
+      - name: Set Maven version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          echo "Setting Maven version to $VERSION"
+          mvn -B -ntp versions:set -DnewVersion=$VERSION -DgenerateBackupPoms=false
+
+      - name: Clear any possible SNAPSHOT dependencies in the local maven repository
+        run: |
+          LOCAL_REPO="$HOME/.m2/repository"
+          echo "Cleaning SNAPSHOTS from $LOCAL_REPO"
+          if [ -d "$LOCAL_REPO" ]; then find "$LOCAL_REPO" -name "*SNAPSHOT*" | xargs -I {} rm -rfv "{}"; fi
+        shell: bash
+
+      - name: Build with Maven
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -U -B -ntp -Dquickly install -DskipTests=true
+
+      - name: Publish to Maven Central
+        if: github.event.inputs.deploy_to_maven_central == 'true'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_CENTRAL_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
+          MAVEN_CENTRAL_GPG_PASSPHRASE: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
+          CENTRAL_GROUP_ID: ${{ github.event.inputs.central_group_id }}
+        run: |
+          set -euo pipefail
+          if ! grep -q '<id>central-release</id>' pom.xml; then
+            echo "This source branch has no central-release profile. Skipping Maven Central."
+            exit 0
+          fi
+          if [ -z "${MAVEN_CENTRAL_USERNAME}" ] || [ -z "${MAVEN_CENTRAL_PASSWORD}" ] || [ -z "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" ]; then
+            echo "::error::Maven Central publishing is not configured. Set MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, and MAVEN_CENTRAL_GPG_PRIVATE_KEY on this repository."
+            exit 1
+          fi
+          rm -rf /tmp/pom-backup
+          find . -name pom.xml -not -path './.git/*' -not -path '*/target/*' -print0 |
+            while IFS= read -r -d '' pom; do
+              mkdir -p "/tmp/pom-backup/$(dirname "$pom")"
+              cp "$pom" "/tmp/pom-backup/$pom"
+            done
+          sed -i 's/\r$//' .github/scripts/rewrite-group-id.sh
+          chmod +x .github/scripts/rewrite-group-id.sh
+          .github/scripts/rewrite-group-id.sh org.wildfly.core "${CENTRAL_GROUP_ID}"
+          find . -name pom.xml -not -path './.git/*' -not -path '*/target/*' -print0 |
+            while IFS= read -r -d '' pom; do
+              sed -i \
+                -e 's|git@github.com:wildfly/wildfly-core.git|https://github.com/martinhickson/wildfly-core.git|g' \
+                -e 's|https://github.com/wildfly/wildfly-core|https://github.com/martinhickson/wildfly-core|g' \
+                "$pom"
+            done
+          # Module templates and feature-pack tasks name reactor artifacts as
+          # org.wildfly.core:artifact. After the POM rewrite those dependencies
+          # are the Central groupId, so the templates have to match for this deploy.
+          find . -type f \( -name '*.xml' -o -name '*.yaml' -o -name '*.yml' -o -name '*.properties' \) \
+            -not -path './.git/*' -not -path './.github/*' -print0 |
+            while IFS= read -r -d '' file; do
+              if grep -q 'org\.wildfly\.core:' "$file"; then
+                sed -i "s|org\\.wildfly\\.core:|${CENTRAL_GROUP_ID}:|g" "$file"
+              fi
+            done
+          find . -type d -path '*/target/module-templates' -print0 | xargs -0 -r rm -rf
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${MAVEN_CENTRAL_USERNAME}</username>
+                <password>${MAVEN_CENTRAL_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
+          mvn -B -ntp deploy -Pcentral-release -DskipTests -Denforcer.skip -Dcheckstyle.skip \
+            -DnoCompile -Dmaven.resources.skip=true \
+            -Dmaven.javadoc.failOnError=false \
+            -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
+          find /tmp/pom-backup -name pom.xml -print0 |
+            while IFS= read -r -d '' src; do
+              rel="${src#/tmp/pom-backup/}"
+              cp "$src" "$rel"
+            done
+          git diff --name-only | grep -v -e '/pom\.xml$' -e '^pom\.xml$' > /tmp/central-rewritten-files || true
+          if [ -s /tmp/central-rewritten-files ]; then
+            git checkout --pathspec-from-file=/tmp/central-rewritten-files
+          fi
+          if grep -R --include='*.xml' --include='*.yaml' --include='*.yml' --include='*.properties' \
+              --exclude-dir=target --exclude-dir=.git --exclude-dir=.github -n "${CENTRAL_GROUP_ID}" . ; then
+            echo "::error::Maven Central groupId was left in a source file after restore"
+            exit 1
+          fi
+
+      - name: Commit version changes
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Set version to ${{ github.event.inputs.version }}"
+          fi
+
+      - name: Push release branch
+        run: |
+          BRANCH="${{ github.event.inputs.release_branch }}"
+          # Try to push, use --set-upstream if branch doesn't exist remotely
+          if git show-ref --verify --quiet refs/remotes/origin/$BRANCH; then
+            echo "Pushing to existing remote branch $BRANCH..."
+            git push origin "$BRANCH" || {
+              echo "Push failed. Branch may have diverged. Exiting."
+              exit 1
+            }
+          else
+            echo "Pushing new branch $BRANCH..."
+            git push -u origin "$BRANCH"
+          fi
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ github.event.inputs.version }}"
+          # Check if tag exists locally
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists locally"
+            # Check if it exists remotely
+            if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+              echo "Tag $TAG already exists remotely, skipping tag creation"
+            else
+              echo "Tag exists locally but not remotely, pushing..."
+              git push origin "$TAG"
+            fi
+          # Check if tag exists remotely
+          elif git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists remotely, skipping tag creation"
+          else
+            echo "Creating tag $TAG"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Deploy artifacts to GitHub Maven Packages (Optional)
+        if: ${{ github.event.inputs.upload_to_github_packages == 'true' }}
+        run: |
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/${{ github.repository }}</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+          mvn -B -ntp deploy -DskipTests=true -DdeployAtEnd=true \
+              -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

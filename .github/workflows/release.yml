@@ -188,6 +188,17 @@ jobs:
                 -e 's|https://github.com/wildfly/wildfly-core|https://github.com/martinhickson/wildfly-core|g' \
                 "$pom"
             done
+          # Module templates and feature-pack tasks name reactor artifacts as
+          # org.wildfly.core:artifact. After the POM rewrite those dependencies
+          # are the Central groupId, so the templates have to match for this deploy.
+          find . -type f \( -name '*.xml' -o -name '*.yaml' -o -name '*.yml' -o -name '*.properties' \) \
+            -not -path './.git/*' -not -path './.github/*' -print0 |
+            while IFS= read -r -d '' file; do
+              if grep -q 'org\.wildfly\.core:' "$file"; then
+                sed -i "s|org\\.wildfly\\.core:|${CENTRAL_GROUP_ID}:|g" "$file"
+              fi
+            done
+          find . -type d -path '*/target/module-templates' -print0 | xargs -0 -r rm -rf
           cat > ~/.m2/settings.xml <<EOF
           <settings>
             <servers>
@@ -209,8 +220,13 @@ jobs:
               rel="${src#/tmp/pom-backup/}"
               cp "$src" "$rel"
             done
-          if grep -R --include=pom.xml -n "${CENTRAL_GROUP_ID}" . ; then
-            echo "::error::Maven Central groupId was left in a POM after restore"
+          git diff --name-only | grep -v -e '/pom\.xml$' -e '^pom\.xml$' > /tmp/central-rewritten-files || true
+          if [ -s /tmp/central-rewritten-files ]; then
+            git checkout --pathspec-from-file=/tmp/central-rewritten-files
+          fi
+          if grep -R --include='*.xml' --include='*.yaml' --include='*.yml' --include='*.properties' \
+              --exclude-dir=target --exclude-dir=.git --exclude-dir=.github -n "${CENTRAL_GROUP_ID}" . ; then
+            echo "::error::Maven Central groupId was left in a source file after restore"
             exit 1
           fi
 

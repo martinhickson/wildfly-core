@@ -178,6 +178,7 @@ jobs:
               mkdir -p "/tmp/pom-backup/$(dirname "$pom")"
               cp "$pom" "/tmp/pom-backup/$pom"
             done
+          sed -i 's/\r$//' .github/scripts/rewrite-group-id.sh
           chmod +x .github/scripts/rewrite-group-id.sh
           .github/scripts/rewrite-group-id.sh org.wildfly.core "${CENTRAL_GROUP_ID}"
           find . -name pom.xml -not -path './.git/*' -not -path '*/target/*' -print0 |

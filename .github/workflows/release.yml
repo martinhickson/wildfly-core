@@ -197,8 +197,21 @@ jobs:
               if grep -q 'org\.wildfly\.core:' "$file"; then
                 sed -i "s|org\\.wildfly\\.core:|${CENTRAL_GROUP_ID}:|g" "$file"
               fi
+              if grep -q 'org\.wildfly\.core\.wildfly-.*\.shaded' "$file"; then
+                sed -i \
+                  -e "s|org\\.wildfly\\.core\\.wildfly-cli\\.shaded|${CENTRAL_GROUP_ID}.wildfly-cli.shaded|g" \
+                  -e "s|org\\.wildfly\\.core\\.wildfly-elytron-tool-wrapper\\.shaded|${CENTRAL_GROUP_ID}.wildfly-elytron-tool-wrapper.shaded|g" \
+                  "$file"
+              fi
             done
-          find . -type d -path '*/target/module-templates' -print0 | xargs -0 -r rm -rf
+          # The feature-pack work dirs and the first build's shaded packages use the
+          # original groupId. Drop them so this deploy copies the rewritten sources.
+          find . -type d \( \
+              -path '*/target/module-templates' -o \
+              -path '*/galleon-feature-pack/target/resources' -o \
+              -path '*/target/resources/packages/org.wildfly.core.wildfly-cli.shaded' -o \
+              -path '*/target/resources/packages/org.wildfly.core.wildfly-elytron-tool-wrapper.shaded' \
+            \) -print0 | xargs -0 -r rm -rf
           cat > ~/.m2/settings.xml <<EOF
           <settings>
             <servers>
@@ -212,7 +225,7 @@ jobs:
           EOF
           echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
           mvn -B -ntp deploy -Pcentral-release -DskipTests -Denforcer.skip -Dcheckstyle.skip \
-            -DnoCompile -Dmaven.resources.skip=true \
+            -DnoCompile -Dgalleon.skip=true \
             -Dmaven.javadoc.failOnError=false \
             -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
           find /tmp/pom-backup -name pom.xml -print0 |

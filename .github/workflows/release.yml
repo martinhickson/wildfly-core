@@ -226,6 +226,7 @@ jobs:
           echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
           mvn -B -ntp deploy -Pcentral-release -DskipTests -Denforcer.skip -Dcheckstyle.skip \
             -DnoCompile -Dgalleon.skip=true -Dwildfly.provision.skip=true \
+            -pl '!wildfly-core-testsuite-standalone,!wildfly-core-testsuite-elytron,!wildfly-core-testsuite-embedded,!wildfly-script-tests,!wildfly-core-testsuite-unstable-api-annotation-tests' \
             -Dmaven.javadoc.failOnError=false \
             -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
           find /tmp/pom-backup -name pom.xml -print0 |

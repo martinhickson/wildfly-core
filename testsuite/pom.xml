@@ -60,6 +60,10 @@
     <!-- Global testsuite system properties defaults. -->
 
     <properties>
+        <!-- These modules disable the jar. The Central deploy signs every reactor project, which fails when there is no artifact. -->
+        <gpg.skip>true</gpg.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <skipPublishing>true</skipPublishing>
         <!-- Current module's directory. Will automatically pick up sub-module's basedir. -->
         <jbossas.ts.submodule.dir>${basedir}</jbossas.ts.submodule.dir>
         <!-- Integration module's directory. To be overriden in sub-modules. -->

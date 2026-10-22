@@ -23,12 +23,22 @@ on:
         required: false
         default: false
         type: boolean
+      deploy_to_maven_central:
+        description: 'Publish to Maven Central when the source branch has the central-release profile'
+        required: false
+        default: true
+        type: boolean
+      central_group_id:
+        description: 'Maven groupId for Maven Central (verified namespace)'
+        required: false
+        default: 'io.github.martinhickson'
+        type: string
 
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     permissions:
       contents: write
       packages: write
@@ -143,6 +153,64 @@ jobs:
           </settings>
           EOF
           mvn -U -B -ntp -Dquickly install -DskipTests=true
+
+      - name: Publish to Maven Central
+        if: github.event.inputs.deploy_to_maven_central == 'true'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_CENTRAL_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
+          MAVEN_CENTRAL_GPG_PASSPHRASE: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
+          CENTRAL_GROUP_ID: ${{ github.event.inputs.central_group_id }}
+        run: |
+          set -euo pipefail
+          if ! grep -q '<id>central-release</id>' pom.xml; then
+            echo "This source branch has no central-release profile. Skipping Maven Central."
+            exit 0
+          fi
+          if [ -z "${MAVEN_CENTRAL_USERNAME}" ] || [ -z "${MAVEN_CENTRAL_PASSWORD}" ] || [ -z "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" ]; then
+            echo "::error::Maven Central publishing is not configured. Set MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, and MAVEN_CENTRAL_GPG_PRIVATE_KEY on this repository."
+            exit 1
+          fi
+          rm -rf /tmp/pom-backup
+          find . -name pom.xml -not -path './.git/*' -not -path '*/target/*' -print0 |
+            while IFS= read -r -d '' pom; do
+              mkdir -p "/tmp/pom-backup/$(dirname "$pom")"
+              cp "$pom" "/tmp/pom-backup/$pom"
+            done
+          chmod +x .github/scripts/rewrite-group-id.sh
+          .github/scripts/rewrite-group-id.sh org.wildfly.core "${CENTRAL_GROUP_ID}"
+          find . -name pom.xml -not -path './.git/*' -not -path '*/target/*' -print0 |
+            while IFS= read -r -d '' pom; do
+              sed -i \
+                -e 's|git@github.com:wildfly/wildfly-core.git|https://github.com/martinhickson/wildfly-core.git|g' \
+                -e 's|https://github.com/wildfly/wildfly-core|https://github.com/martinhickson/wildfly-core|g' \
+                "$pom"
+            done
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${MAVEN_CENTRAL_USERNAME}</username>
+                <password>${MAVEN_CENTRAL_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
+          mvn -B -ntp deploy -Pcentral-release -DskipTests -Denforcer.skip -Dcheckstyle.skip \
+            -Dmaven.javadoc.failOnError=false \
+            -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
+          find /tmp/pom-backup -name pom.xml -print0 |
+            while IFS= read -r -d '' src; do
+              rel="${src#/tmp/pom-backup/}"
+              cp "$src" "$rel"
+            done
+          if grep -R --include=pom.xml -n "${CENTRAL_GROUP_ID}" . ; then
+            echo "::error::Maven Central groupId was left in a POM after restore"
+            exit 1
+          fi
 
       - name: Commit version changes
         run: |

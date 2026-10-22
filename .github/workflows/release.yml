@@ -201,6 +201,7 @@ jobs:
           EOF
           echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
           mvn -B -ntp deploy -Pcentral-release -DskipTests -Denforcer.skip -Dcheckstyle.skip \
+            -Dmaven.compiler.skip=true -Dmaven.resources.skip=true \
             -Dmaven.javadoc.failOnError=false \
             -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
           find /tmp/pom-backup -name pom.xml -print0 |

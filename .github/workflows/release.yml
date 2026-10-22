@@ -47,6 +47,15 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Install Maven 3.8.9
+        run: |
+          base=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.8.9
+          curl -fsSL -o "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" "$base/apache-maven-3.8.9-bin.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz.sha1" "$base/apache-maven-3.8.9-bin.tar.gz.sha1"
+          echo "$(tr -d '[:space:]' < "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz.sha1")  $RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" | sha1sum -c -
+          tar -xzf "$RUNNER_TEMP/apache-maven-3.8.9-bin.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-3.8.9/bin" >> "$GITHUB_PATH"
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"

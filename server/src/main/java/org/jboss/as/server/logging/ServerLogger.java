@@ -1397,6 +1397,9 @@ public interface ServerLogger extends BasicLogger {
     @Message(id = 290, value = "Couldn't find the specified YAML file %s")
     IllegalArgumentException unableToFindYaml(String file);
 
+    @Message(id = 317, value = "Deployment name %s contains illegal path traversal sequences")
+    IllegalArgumentException illegalPathTraversalInDeploymentName(String deploymentManagementName);
+
     ////////////////////////////////////////////////
     //Messages without IDs
 

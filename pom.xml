@@ -33,7 +33,7 @@
 
     <groupId>org.wildfly.core</groupId>
     <artifactId>wildfly-core-parent</artifactId>
-    <version>18.1.2.Final</version>
+    <version>18.1.2.1-bravura-10</version>
 
     <packaging>pom</packaging>
 
